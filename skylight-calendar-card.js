@@ -24,7 +24,9 @@ class SkylightCalendarCard extends HTMLElement {
       colors: config.colors || {},
       maxEvents: config.max_events || 100,
       view_mode: config.view_mode || 'month', // 'month', 'week-compact', 'week-standard'
+      default_view: config.default_view || config.view_mode || 'month', // Default view on load
       week_days: config.week_days || [0, 1, 2, 3, 4, 5, 6], // Which days to show in week view
+      rolling_days: config.rolling_days || null, // If set, show current day + N days instead of week_days
       week_start_hour: config.week_start_hour || 8, // Start hour for week-standard view
       week_end_hour: config.week_end_hour || 21, // End hour for week-standard view (9pm)
       compact_height: config.compact_height || false, // Fit to screen height
@@ -32,7 +34,7 @@ class SkylightCalendarCard extends HTMLElement {
       compact_header: config.compact_header || false, // Compact header layout
       ...config
     };
-    this._viewMode = this._config.view_mode;
+    this._viewMode = this._config.default_view;
     this.setWeekStart();
     this.render();
   }
@@ -135,6 +137,21 @@ class SkylightCalendarCard extends HTMLElement {
   }
 
   getWeekDays() {
+    // If rolling_days is set, show today + N days
+    if (this._config.rolling_days !== null) {
+      const days = [];
+      const startDate = new Date();
+      startDate.setHours(0, 0, 0, 0);
+      
+      for (let i = 0; i <= this._config.rolling_days; i++) {
+        const date = new Date(startDate);
+        date.setDate(startDate.getDate() + i);
+        days.push(date);
+      }
+      return days;
+    }
+    
+    // Otherwise use the week-based approach
     const days = [];
     for (let i = 0; i < 7; i++) {
       const date = new Date(this._weekStart);
@@ -516,28 +533,51 @@ class SkylightCalendarCard extends HTMLElement {
       
       .time-column {
         min-width: 60px;
-        padding-top: 80px;
+        flex-shrink: 0;
+        position: relative;
+      }
+      
+      .time-column-header-spacer {
+        height: 60px;
+        background: transparent;
+        flex-shrink: 0;
+      }
+      
+      .time-column-allday-spacer {
+        min-height: 48px;
+        height: 48px;
+        padding: 8px;
+        background: transparent;
+        border-bottom: 2px solid transparent;
+        flex-shrink: 0;
+      }
+      
+      .time-column-extra-spacer {
+        height: 20px;
+        background: transparent;
         flex-shrink: 0;
       }
       
       .time-slot {
         height: 120px;
-        padding: 4px 8px;
         font-size: 11px;
         color: #9ca3af;
         text-align: right;
         font-weight: 500;
         position: relative;
+        padding-right: 8px;
+        display: flex;
+        align-items: flex-start;
+        padding-top: 0;
+        box-sizing: border-box;
+        border-top: 1px solid transparent;
       }
       
-      .time-slot::after {
-        content: '';
+      .time-slot-label {
         position: absolute;
-        right: 0;
-        top: 0;
-        width: 1px;
-        height: 100%;
-        background: #e5e7eb;
+        top: -6px;
+        right: 8px;
+        line-height: 1;
       }
       
       .week-standard-day-column {
@@ -570,17 +610,17 @@ class SkylightCalendarCard extends HTMLElement {
         font-weight: 700;
         color: #111827;
         margin-top: 4px;
+        width: 40px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       }
       
       .week-standard-day-column.today .week-standard-day-date {
         background: #3b82f6;
         color: white;
-        width: 40px;
-        height: 40px;
         border-radius: 50%;
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
       }
       
       .day-time-slots {
@@ -588,10 +628,44 @@ class SkylightCalendarCard extends HTMLElement {
         min-height: 600px;
       }
       
+      .all-day-events {
+        padding: 8px;
+        background: #f9fafb;
+        border-bottom: 2px solid #e5e7eb;
+        min-height: 48px;
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        box-sizing: border-box;
+      }
+      
+      .all-day-event {
+        padding: 6px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: transform 0.2s, box-shadow 0.2s;
+        font-size: 11px;
+        flex-shrink: 0;
+      }
+      
+      .all-day-event:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      }
+      
+      .all-day-event-title {
+        font-weight: 600;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: #1f2937;
+      }
+      
       .day-time-slot {
         height: 120px;
-        border-bottom: 1px solid #f3f4f6;
+        border-top: 1px solid #f3f4f6;
         position: relative;
+        box-sizing: border-box;
       }
       
       .week-standard-event {
@@ -599,7 +673,7 @@ class SkylightCalendarCard extends HTMLElement {
         left: 8px;
         right: 8px;
         color: #1f2937;
-        padding: 10px;
+        padding: 6px 8px;
         border-radius: 8px;
         font-size: 12px;
         overflow: hidden;
@@ -607,6 +681,7 @@ class SkylightCalendarCard extends HTMLElement {
         transition: transform 0.2s, box-shadow 0.2s;
         z-index: 1;
         box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        box-sizing: border-box;
       }
       
       .week-standard-event:hover {
@@ -987,8 +1062,13 @@ class SkylightCalendarCard extends HTMLElement {
       <div class="week-standard-container" style="${containerStyle}">
         <!-- Time column -->
         <div class="time-column">
+          <div class="time-column-header-spacer"></div>
+          <div class="time-column-allday-spacer"></div>
+          <div class="time-column-extra-spacer"></div>
           ${hours.map(hour => `
-            <div class="time-slot" style="height: ${hourHeight}px;">${this.formatHour(hour)}</div>
+            <div class="time-slot" style="height: ${hourHeight}px;">
+              <span class="time-slot-label">${this.formatHour(hour)}</span>
+            </div>
           `).join('')}
         </div>
         
@@ -1003,11 +1083,12 @@ class SkylightCalendarCard extends HTMLElement {
                 <div class="week-standard-day-name">${dayNames[date.getDay()]}</div>
                 <div class="week-standard-day-date">${date.getDate()}</div>
               </div>
+              ${this.renderAllDayEventsForDay(dayEvents)}
               <div class="day-time-slots">
                 ${hours.map(hour => `
                   <div class="day-time-slot" style="height: ${hourHeight}px;"></div>
                 `).join('')}
-                ${this.renderWeekStandardEvents(dayEvents, date, startHour, endHour)}
+                ${this.renderTimedEventsForDay(dayEvents, date, startHour, endHour, hourHeight)}
               </div>
             </div>
           `;
@@ -1043,26 +1124,56 @@ class SkylightCalendarCard extends HTMLElement {
     `;
   }
 
-  renderWeekStandardEvents(events, date, startHour, endHour) {
-    const baseHourHeight = 120; // Base px per hour
-    const hourHeight = baseHourHeight * (this._config.height_scale || 1.0);
-    const totalHours = endHour - startHour + 1;
-    
-    return events.filter(event => {
-      // Filter out hidden calendars
+  renderAllDayEventsForDay(events) {
+    const allDayEvents = events.filter(event => {
       if (this._hiddenCalendars.has(event.entityId)) {
         return false;
       }
       
-      // Determine if event is all day
+      let isAllDay = false;
+      
+      if (event.start.date) {
+        isAllDay = true;
+      } else if (event.start.dateTime) {
+        isAllDay = false;
+      } else {
+        isAllDay = !event.start.includes('T');
+      }
+      
+      return isAllDay;
+    });
+    
+    // Always render the all-day section, even if empty, to keep consistent height
+    return `
+      <div class="all-day-events">
+        ${allDayEvents.length > 0 ? allDayEvents.map(event => {
+          const bgColor = this.lightenColor(event.color, 0.85);
+          return `
+            <div class="all-day-event" 
+                 style="background: ${bgColor}; border-left: 4px solid ${event.color}"
+                 data-event='${JSON.stringify(event).replace(/'/g, "&#39;")}'>
+              <div class="all-day-event-title">${this.escapeHtml(event.summary || 'Untitled')}</div>
+            </div>
+          `;
+        }).join('') : '<div style="height: 8px;"></div>'}
+      </div>
+    `;
+  }
+
+  renderTimedEventsForDay(events, date, startHour, endHour, hourHeight) {
+    const timedEvents = events.filter(event => {
+      if (this._hiddenCalendars.has(event.entityId)) {
+        return false;
+      }
+      
       let isAllDay = false;
       let eventStart;
       
       if (event.start.dateTime) {
         eventStart = new Date(event.start.dateTime);
+        isAllDay = false;
       } else if (event.start.date) {
-        isAllDay = true;
-        return false; // Skip all-day events in timeline view
+        return false; // Skip all-day events
       } else {
         eventStart = new Date(event.start);
         isAllDay = !event.start.includes('T');
@@ -1072,7 +1183,10 @@ class SkylightCalendarCard extends HTMLElement {
       
       const eventHour = eventStart.getHours();
       return eventHour >= startHour && eventHour <= endHour;
-    }).map(event => {
+    });
+    
+    // Process timed events for overlaps
+    const eventBlocks = timedEvents.map(event => {
       let eventStart, eventEnd;
       
       if (event.start.dateTime) {
@@ -1085,17 +1199,67 @@ class SkylightCalendarCard extends HTMLElement {
       
       const startHourFloat = eventStart.getHours() + eventStart.getMinutes() / 60;
       const endHourFloat = eventEnd.getHours() + eventEnd.getMinutes() / 60;
+      
+      return {
+        event,
+        eventStart,
+        eventEnd,
+        startHourFloat,
+        endHourFloat,
+        startMinutes: eventStart.getHours() * 60 + eventStart.getMinutes(),
+        endMinutes: eventEnd.getHours() * 60 + eventEnd.getMinutes()
+      };
+    });
+    
+    // Sort by start time, then by duration (longer first)
+    eventBlocks.sort((a, b) => {
+      if (a.startMinutes !== b.startMinutes) {
+        return a.startMinutes - b.startMinutes;
+      }
+      return (b.endMinutes - b.startMinutes) - (a.endMinutes - a.startMinutes);
+    });
+    
+    // Detect overlapping events and assign columns
+    const columns = [];
+    eventBlocks.forEach(block => {
+      // Find a column where this event doesn't overlap
+      let placed = false;
+      for (let col of columns) {
+        const overlaps = col.some(other => 
+          block.startMinutes < other.endMinutes && block.endMinutes > other.startMinutes
+        );
+        if (!overlaps) {
+          col.push(block);
+          block.column = columns.indexOf(col);
+          placed = true;
+          break;
+        }
+      }
+      if (!placed) {
+        columns.push([block]);
+        block.column = columns.length - 1;
+      }
+    });
+    
+    const totalColumns = columns.length;
+    
+    // Render timed events
+    return eventBlocks.map(block => {
+      const { event, eventStart, eventEnd, startHourFloat, endHourFloat, column } = block;
+      
       const duration = endHourFloat - startHourFloat;
-      
       const top = (startHourFloat - startHour) * hourHeight;
-      const height = Math.max(duration * hourHeight, 60);
+      const height = duration * hourHeight;
       
-      // Get lighter shade of the color for the event background
+      // Calculate width and position for concurrent events
+      const width = totalColumns > 1 ? `calc((100% - 16px) / ${totalColumns})` : 'calc(100% - 16px)';
+      const left = totalColumns > 1 ? `calc(8px + ((100% - 16px) / ${totalColumns}) * ${column})` : '8px';
+      
       const bgColor = this.lightenColor(event.color, 0.85);
       
       return `
         <div class="week-standard-event" 
-             style="top: ${top}px; height: ${height}px; background: ${bgColor}; border-left: 4px solid ${event.color}"
+             style="top: ${top}px; height: ${height}px; width: ${width}; left: ${left}; background: ${bgColor}; border-left: 4px solid ${event.color}"
              data-event='${JSON.stringify(event).replace(/'/g, "&#39;")}'>
           <div class="week-standard-event-title">${this.escapeHtml(event.summary || 'Untitled')}</div>
           <div class="week-standard-event-time">${this.formatTime(eventStart)} - ${this.formatTime(eventEnd)}</div>
@@ -1103,6 +1267,12 @@ class SkylightCalendarCard extends HTMLElement {
         </div>
       `;
     }).join('');
+  }
+
+  renderWeekStandardEvents(events, date, startHour, endHour) {
+    // This method is kept for backwards compatibility but now calls the split methods
+    const hourHeight = 120 * (this._config.height_scale || 1.0);
+    return this.renderTimedEventsForDay(events, date, startHour, endHour, hourHeight);
   }
 
   renderEventIcon(event) {
@@ -1228,26 +1398,34 @@ class SkylightCalendarCard extends HTMLElement {
       }
       
       // Handle both ISO format and HA's datetime format
-      let eventStart, eventEnd;
+      let eventStart, eventEnd, isAllDay;
       
       if (event.start.dateTime) {
         // Google Calendar format
         eventStart = new Date(event.start.dateTime);
         eventEnd = new Date(event.end.dateTime);
+        isAllDay = false;
       } else if (event.start.date) {
         // All-day event format
-        eventStart = new Date(event.start.date);
-        eventEnd = new Date(event.end.date);
+        eventStart = new Date(event.start.date + 'T00:00:00');
+        eventEnd = new Date(event.end.date + 'T00:00:00');
+        isAllDay = true;
       } else {
         // Direct ISO string format
         eventStart = new Date(event.start);
         eventEnd = new Date(event.end);
+        isAllDay = !event.start.includes('T');
       }
       
       // Check if the date falls within the event range
       const eventStartDate = new Date(eventStart.getFullYear(), eventStart.getMonth(), eventStart.getDate());
       const eventEndDate = new Date(eventEnd.getFullYear(), eventEnd.getMonth(), eventEnd.getDate());
       const checkDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      
+      // For all-day events, end date is exclusive (event ends at start of end date)
+      if (isAllDay) {
+        return checkDate >= eventStartDate && checkDate < eventEndDate;
+      }
       
       return checkDate >= eventStartDate && checkDate <= eventEndDate;
     });
@@ -1312,7 +1490,7 @@ class SkylightCalendarCard extends HTMLElement {
     });
     
     // Event click handlers for all view modes
-    this.shadowRoot.querySelectorAll('.event, .week-compact-event, .week-standard-event').forEach(eventEl => {
+    this.shadowRoot.querySelectorAll('.event, .week-compact-event, .week-standard-event, .all-day-event').forEach(eventEl => {
       eventEl.addEventListener('click', (e) => {
         e.stopPropagation();
         const eventData = JSON.parse(eventEl.getAttribute('data-event'));
