@@ -9,6 +9,7 @@ A beautiful, customizable calendar card for Home Assistant that mimics the desig
 
 - 🎨 **Beautiful Design**: Clean, modern interface inspired by Skylight Calendar
 - 📅 **Multiple Views**: Month view, compact week view, and schedule week view
+- 📆 **Rolling Days Mode**: Show today + N days for flexible date ranges
 - 🎯 **Multiple Calendars**: Support for multiple calendar entities with custom colors
 - 👁️ **Calendar Filtering**: Click calendar badges to show/hide specific calendars
 - 🖱️ **Interactive**: Click on events to view full details in a popup
@@ -17,6 +18,12 @@ A beautiful, customizable calendar card for Home Assistant that mimics the desig
 - 🎨 **Customizable**: Configure colors, starting day of week, visible days, and more
 - ⏰ **Flexible Schedule**: Customize time range for schedule view (e.g., 8am-9pm)
 - 📏 **Height Control**: Adjust vertical scale or enable compact mode to fit screen
+- 🎯 **Concurrent Events**: Events at the same time display side-by-side
+- 📌 **All-Day Events**: Displayed at top of day with dynamic height allocation
+- 🔢 **Smart Sorting**: All-day events first, then chronological order by start time
+- 📐 **Precise Positioning**: Events positioned at exact time slots with minute precision
+- 🎛️ **Default View**: Set which view loads by default (month/week/schedule)
+- 📏 **Compact Header**: Optional single-row header layout for space savings
 
 ## Installation
 
@@ -66,6 +73,7 @@ entities:
   - calendar.work
   - calendar.family
   - calendar.kids_activities
+default_view: week-standard  # Load this view by default
 first_day_of_week: 0  # 0 = Sunday, 1 = Monday, etc.
 show_week_numbers: false
 max_events: 100
@@ -73,12 +81,37 @@ view_mode: month  # 'month', 'week-compact', or 'week-standard'
 week_days: [0, 1, 2, 3, 4, 5, 6]  # Days to show in week views (0=Sun, 6=Sat)
 week_start_hour: 8  # Start hour for week-standard view
 week_end_hour: 21   # End hour for week-standard view (9pm = 21)
+height_scale: 0.6   # Make schedule more compact (50-200%)
+compact_height: true  # Fit to screen with scrolling
+compact_header: true  # Single-row header layout
 colors:
   calendar.personal: '#FF6B6B'
   calendar.work: '#4ECDC4'
   calendar.family: '#45B7D1'
   calendar.kids_activities: '#FFA07A'
 ```
+
+### Rolling Days Mode
+
+Instead of showing a fixed week, you can show "today + N days":
+
+```yaml
+type: custom:skylight-calendar-card
+title: Next 7 Days
+entities:
+  - calendar.family
+default_view: week-standard
+rolling_days: 6  # Show today + 6 more days = 7 total days
+week_start_hour: 6
+week_end_hour: 22
+height_scale: 0.5
+compact_height: true
+```
+
+This mode is perfect for:
+- Always showing upcoming events regardless of week boundaries
+- Custom date ranges (3 days, 10 days, etc.)
+- Scrolling through time in custom increments
 
 ## Configuration Options
 
@@ -87,12 +120,15 @@ colors:
 | `title` | string | `'Family Calendar'` | Card title displayed in header |
 | `entities` | list | **Required** | List of calendar entity IDs |
 | `view_mode` | string | `'month'` | View mode: `'month'`, `'week-compact'`, or `'week-standard'` |
+| `default_view` | string | `null` | Initial view mode on load (overrides view_mode) |
 | `first_day_of_week` | integer | `0` | First day of week (0 = Sunday, 1 = Monday, etc.) |
 | `week_days` | list | `[0,1,2,3,4,5,6]` | Days to show in week views (0=Sun, 6=Sat) |
+| `rolling_days` | integer | `null` | Show today + N days (alternative to week_days) |
 | `week_start_hour` | integer | `8` | Start hour for week-standard view (0-23) |
 | `week_end_hour` | integer | `21` | End hour for week-standard view (0-23) |
-| `height_scale` | float | `1.0` | Height scaling factor (0.5 = 50%, 2.0 = 200%) |
+| `height_scale` | float | `1.0` | Height scaling factor (0.5-2.0, affects schedule view) |
 | `compact_height` | boolean | `false` | Fit calendar to screen height with scroll |
+| `compact_header` | boolean | `false` | Single-row header with inline badges |
 | `show_week_numbers` | boolean | `false` | Show week numbers on the left side |
 | `max_events` | integer | `100` | Maximum number of events to load |
 | `colors` | map | auto | Custom colors for each calendar entity |
@@ -160,6 +196,32 @@ colors:
   calendar.kids: '#FFA07A'        # Orange for kids' activities
 ```
 
+### Concurrent Events
+
+When multiple events happen at the same time in schedule view, they automatically display side-by-side instead of overlapping:
+
+- Events are detected for overlaps using precise minute-based timing
+- Each concurrent event gets its own column with appropriate width
+- Non-overlapping events share columns for efficient use of space
+- Visual layout matches professional calendar applications
+
+### All-Day Events
+
+All-day events are handled specially across all views:
+
+- **Positioned first**: All-day events always appear before timed events
+- **Dynamic height**: The all-day section automatically sizes to fit the busiest day
+- **Consistent alignment**: All days show the same all-day section height
+- **Hidden when empty**: If no all-day events exist in the visible range, the section is completely removed
+
+### Event Sorting
+
+Events are automatically sorted for optimal viewing:
+
+1. **All-day events** appear first (top of list)
+2. **Timed events** follow in chronological order by start time
+3. Works consistently across all three view modes
+
 ### Event Details Modal
 
 Click on any event to see:
@@ -224,6 +286,50 @@ height_scale: 1.5  # 150% of default height
 ```yaml
 compact_height: true  # Fits to viewport height
 ```
+
+**Combine for best results:**
+```yaml
+height_scale: 0.6
+compact_height: true
+# Creates a compact view that fits perfectly in the available space
+```
+
+### Using Rolling Days Mode
+
+Perfect for dynamic date ranges that don't follow calendar weeks:
+
+```yaml
+# Show next 3 days
+rolling_days: 2  # Today + 2 = 3 days
+
+# Show next 10 days
+rolling_days: 9  # Today + 9 = 10 days
+
+# Show just today
+rolling_days: 0  # Today only
+```
+
+Navigation buttons will advance by the number of days shown (rolling_days + 1).
+
+### Setting Default View
+
+Load the card in your preferred view automatically:
+
+```yaml
+default_view: 'week-standard'  # Always open in schedule view
+```
+
+This is especially useful when you primarily use one view mode but want the ability to switch to others.
+
+### Compact Header Mode
+
+Save vertical space with the single-row header:
+
+```yaml
+compact_header: true
+```
+
+This shows the title, calendar badges, and view controls all in one row, perfect for smaller screens or when maximizing calendar space.
 
 ### Interactive Features
 

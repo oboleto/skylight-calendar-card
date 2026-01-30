@@ -137,10 +137,10 @@ class SkylightCalendarCard extends HTMLElement {
   }
 
   getWeekDays() {
-    // If rolling_days is set, show today + N days
+    // If rolling_days is set, show current date + N days
     if (this._config.rolling_days !== null) {
       const days = [];
-      const startDate = new Date();
+      const startDate = new Date(this._currentDate);
       startDate.setHours(0, 0, 0, 0);
       
       for (let i = 0; i <= this._config.rolling_days; i++) {
@@ -544,16 +544,15 @@ class SkylightCalendarCard extends HTMLElement {
       }
       
       .time-column-allday-spacer {
-        min-height: 48px;
-        height: 48px;
         padding: 8px;
         background: transparent;
         border-bottom: 2px solid transparent;
         flex-shrink: 0;
+        box-sizing: border-box;
       }
       
       .time-column-extra-spacer {
-        height: 20px;
+        height: 35px;
         background: transparent;
         flex-shrink: 0;
       }
@@ -583,7 +582,6 @@ class SkylightCalendarCard extends HTMLElement {
       .week-standard-day-column {
         flex: 1;
         min-width: 140px;
-        max-width: 250px;
         background: white;
         border-radius: 8px;
         overflow: hidden;
@@ -632,7 +630,6 @@ class SkylightCalendarCard extends HTMLElement {
         padding: 8px;
         background: #f9fafb;
         border-bottom: 2px solid #e5e7eb;
-        min-height: 48px;
         display: flex;
         flex-direction: column;
         gap: 4px;
@@ -640,12 +637,16 @@ class SkylightCalendarCard extends HTMLElement {
       }
       
       .all-day-event {
-        padding: 6px 10px;
+        padding: 4px 8px;
         border-radius: 6px;
         cursor: pointer;
         transition: transform 0.2s, box-shadow 0.2s;
         font-size: 11px;
         flex-shrink: 0;
+        height: 24px;
+        display: flex;
+        align-items: center;
+        box-sizing: border-box;
       }
       
       .all-day-event:hover {
@@ -996,7 +997,23 @@ class SkylightCalendarCard extends HTMLElement {
       <div class="week-compact-container">
         ${weekDays.map(date => {
           const isToday = date.toDateString() === today.toDateString();
-          const events = this.getEventsForDay(date);
+          let events = this.getEventsForDay(date);
+          
+          // Sort events: all-day first, then by start time
+          events = events.sort((a, b) => {
+            const aIsAllDay = a.start.date || !a.start.includes?.('T');
+            const bIsAllDay = b.start.date || !b.start.includes?.('T');
+            
+            // All-day events come first
+            if (aIsAllDay && !bIsAllDay) return -1;
+            if (!aIsAllDay && bIsAllDay) return 1;
+            
+            // Both same type, sort by time
+            const aTime = new Date(a.start.dateTime || a.start.date || a.start);
+            const bTime = new Date(b.start.dateTime || b.start.date || b.start);
+            return aTime - bTime;
+          });
+          
           const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
           
           return `
@@ -1057,13 +1074,33 @@ class SkylightCalendarCard extends HTMLElement {
       ? 'max-height: calc(100vh - 200px); overflow-y: auto;' 
       : '';
     
+    // Calculate max all-day events across all days
+    let maxAllDayEvents = 0;
+    weekDays.forEach(date => {
+      const dayEvents = this.getEventsForDay(date);
+      const allDayCount = dayEvents.filter(event => {
+        if (this._hiddenCalendars.has(event.entityId)) return false;
+        if (event.start.date) return true;
+        if (event.start.dateTime) return false;
+        return !event.start.includes('T');
+      }).length;
+      maxAllDayEvents = Math.max(maxAllDayEvents, allDayCount);
+    });
+    
+    const hasAllDayEvents = maxAllDayEvents > 0;
+    // Calculate height: 16px padding + events×24px + gaps×4px + 2px border
+    // gaps = events - 1 (no gap after last event)
+    const allDayHeight = hasAllDayEvents 
+      ? 16 + (maxAllDayEvents * 24) + ((maxAllDayEvents - 1) * 4) + 2
+      : 0;
+    
     return `
       ${!this._config.compact_header ? this.renderCalendarBadges() : ''}
       <div class="week-standard-container" style="${containerStyle}">
         <!-- Time column -->
         <div class="time-column">
           <div class="time-column-header-spacer"></div>
-          <div class="time-column-allday-spacer"></div>
+          ${hasAllDayEvents ? `<div class="time-column-allday-spacer" style="height: ${allDayHeight}px;"></div>` : ''}
           <div class="time-column-extra-spacer"></div>
           ${hours.map(hour => `
             <div class="time-slot" style="height: ${hourHeight}px;">
@@ -1083,7 +1120,7 @@ class SkylightCalendarCard extends HTMLElement {
                 <div class="week-standard-day-name">${dayNames[date.getDay()]}</div>
                 <div class="week-standard-day-date">${date.getDate()}</div>
               </div>
-              ${this.renderAllDayEventsForDay(dayEvents)}
+              ${hasAllDayEvents ? this.renderAllDayEventsForDay(dayEvents, allDayHeight) : ''}
               <div class="day-time-slots">
                 ${hours.map(hour => `
                   <div class="day-time-slot" style="height: ${hourHeight}px;"></div>
@@ -1124,7 +1161,7 @@ class SkylightCalendarCard extends HTMLElement {
     `;
   }
 
-  renderAllDayEventsForDay(events) {
+  renderAllDayEventsForDay(events, allDayHeight) {
     const allDayEvents = events.filter(event => {
       if (this._hiddenCalendars.has(event.entityId)) {
         return false;
@@ -1143,9 +1180,9 @@ class SkylightCalendarCard extends HTMLElement {
       return isAllDay;
     });
     
-    // Always render the all-day section, even if empty, to keep consistent height
+    // Always render with the calculated height to keep all days aligned
     return `
-      <div class="all-day-events">
+      <div class="all-day-events" style="min-height: ${allDayHeight}px; height: ${allDayHeight}px;">
         ${allDayEvents.length > 0 ? allDayEvents.map(event => {
           const bgColor = this.lightenColor(event.color, 0.85);
           return `
@@ -1155,7 +1192,7 @@ class SkylightCalendarCard extends HTMLElement {
               <div class="all-day-event-title">${this.escapeHtml(event.summary || 'Untitled')}</div>
             </div>
           `;
-        }).join('') : '<div style="height: 8px;"></div>'}
+        }).join('') : ''}
       </div>
     `;
   }
@@ -1351,7 +1388,23 @@ class SkylightCalendarCard extends HTMLElement {
   renderDay(dayNum, date, isOtherMonth) {
     const today = new Date();
     const isToday = date.toDateString() === today.toDateString();
-    const dayEvents = this.getEventsForDay(date);
+    let dayEvents = this.getEventsForDay(date);
+    
+    // Sort events: all-day first, then by start time
+    dayEvents = dayEvents.sort((a, b) => {
+      const aIsAllDay = a.start.date || !a.start.includes?.('T');
+      const bIsAllDay = b.start.date || !b.start.includes?.('T');
+      
+      // All-day events come first
+      if (aIsAllDay && !bIsAllDay) return -1;
+      if (!aIsAllDay && bIsAllDay) return 1;
+      
+      // Both same type, sort by time
+      const aTime = new Date(a.start.dateTime || a.start.date || a.start);
+      const bTime = new Date(b.start.dateTime || b.start.date || b.start);
+      return aTime - bTime;
+    });
+    
     const maxVisible = 3;
     
     let classes = 'day-cell';
@@ -1464,8 +1517,14 @@ class SkylightCalendarCard extends HTMLElement {
       if (this._viewMode === 'month') {
         this._currentDate.setMonth(this._currentDate.getMonth() - 1);
       } else {
-        this._currentDate.setDate(this._currentDate.getDate() - 7);
-        this.setWeekStart();
+        // In rolling_days mode, advance by rolling_days + 1, otherwise by 7
+        const daysToAdvance = this._config.rolling_days !== null 
+          ? this._config.rolling_days + 1 
+          : 7;
+        this._currentDate.setDate(this._currentDate.getDate() - daysToAdvance);
+        if (this._config.rolling_days === null) {
+          this.setWeekStart();
+        }
       }
       this._lastFetch = null; // Force refresh
       this.updateEvents();
@@ -1475,8 +1534,14 @@ class SkylightCalendarCard extends HTMLElement {
       if (this._viewMode === 'month') {
         this._currentDate.setMonth(this._currentDate.getMonth() + 1);
       } else {
-        this._currentDate.setDate(this._currentDate.getDate() + 7);
-        this.setWeekStart();
+        // In rolling_days mode, advance by rolling_days + 1, otherwise by 7
+        const daysToAdvance = this._config.rolling_days !== null 
+          ? this._config.rolling_days + 1 
+          : 7;
+        this._currentDate.setDate(this._currentDate.getDate() + daysToAdvance);
+        if (this._config.rolling_days === null) {
+          this.setWeekStart();
+        }
       }
       this._lastFetch = null; // Force refresh
       this.updateEvents();
@@ -1484,7 +1549,9 @@ class SkylightCalendarCard extends HTMLElement {
     
     todayButton?.addEventListener('click', () => {
       this._currentDate = new Date();
-      this.setWeekStart();
+      if (this._config.rolling_days === null) {
+        this.setWeekStart();
+      }
       this._lastFetch = null; // Force refresh
       this.updateEvents();
     });
