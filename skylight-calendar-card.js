@@ -32,6 +32,7 @@ class SkylightCalendarCard extends HTMLElement {
       compact_height: config.compact_height || false, // Fit to screen height
       height_scale: config.height_scale || 1.0, // Scale factor for height (0.5 = 50%, 2.0 = 200%)
       compact_header: config.compact_header || false, // Compact header layout
+      header_color: config.header_color !== undefined ? config.header_color : 'var(--primary-color)', // Custom header background color/gradient
       ...config
     };
     this._viewMode = this._config.default_view;
@@ -180,7 +181,7 @@ class SkylightCalendarCard extends HTMLElement {
       }
       
       .header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: var(--header-background);
         color: white;
         padding: 20px 24px;
         display: flex;
@@ -856,12 +857,16 @@ class SkylightCalendarCard extends HTMLElement {
     const year = this._currentDate.getFullYear();
     const month = this._currentDate.getMonth();
 
+    const headerColorStyle = this._config.header_color 
+      ? `--header-background: ${this._config.header_color};` 
+      : '';
+    
     this.shadowRoot.innerHTML = `
       <style>
         ${this.getStyles()}
       </style>
       
-      <div class="calendar-container">
+      <div class="calendar-container" style="${headerColorStyle}">
         ${this._config.compact_header ? this.renderCompactHeader() : this.renderStandardHeader()}
         
         ${this.renderCalendarView()}

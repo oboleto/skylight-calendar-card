@@ -16,6 +16,7 @@ A beautiful, customizable calendar card for Home Assistant that mimics the desig
 - 📱 **Responsive**: Works great on desktop, tablet, and mobile
 - 🔄 **Real-time Updates**: Automatically syncs with your Home Assistant calendars
 - 🎨 **Customizable**: Configure colors, starting day of week, visible days, and more
+- 🌈 **Custom Header Colors**: Personalize the banner with solid colors or gradients
 - ⏰ **Flexible Schedule**: Customize time range for schedule view (e.g., 8am-9pm)
 - 📏 **Height Control**: Adjust vertical scale or enable compact mode to fit screen
 - 🎯 **Concurrent Events**: Events at the same time display side-by-side
@@ -74,6 +75,7 @@ entities:
   - calendar.family
   - calendar.kids_activities
 default_view: week-standard  # Load this view by default
+header_color: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)'  # Custom blue gradient
 first_day_of_week: 0  # 0 = Sunday, 1 = Monday, etc.
 show_week_numbers: false
 max_events: 100
@@ -121,6 +123,7 @@ This mode is perfect for:
 | `entities` | list | **Required** | List of calendar entity IDs |
 | `view_mode` | string | `'month'` | View mode: `'month'`, `'week-compact'`, or `'week-standard'` |
 | `default_view` | string | `null` | Initial view mode on load (overrides view_mode) |
+| `header_color` | string | `'var(--primary-color)'` | Custom header background (solid color or gradient) |
 | `first_day_of_week` | integer | `0` | First day of week (0 = Sunday, 1 = Monday, etc.) |
 | `week_days` | list | `[0,1,2,3,4,5,6]` | Days to show in week views (0=Sun, 6=Sat) |
 | `rolling_days` | integer | `null` | Show today + N days (alternative to week_days) |
@@ -194,6 +197,53 @@ colors:
   calendar.work: '#4ECDC4'        # Teal for work events
   calendar.family: '#45B7D1'      # Blue for family events
   calendar.kids: '#FFA07A'        # Orange for kids' activities
+```
+
+### Customizing Header Color
+
+By default, the header automatically matches your Home Assistant theme's primary color using `var(--primary-color)`. You can override this with any custom color or gradient:
+
+**Solid Colors:**
+```yaml
+header_color: '#1e40af'  # Solid blue
+header_color: '#059669'  # Solid green
+header_color: '#dc2626'  # Solid red
+```
+
+**Gradients:**
+```yaml
+# Blue gradient
+header_color: 'linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%)'
+
+# Green gradient
+header_color: 'linear-gradient(135deg, #065f46 0%, #10b981 100%)'
+
+# Orange/Red gradient
+header_color: 'linear-gradient(135deg, #ea580c 0%, #dc2626 100%)'
+
+# Teal gradient
+header_color: 'linear-gradient(135deg, #0f766e 0%, #14b8a6 100%)'
+
+# Classic purple gradient (original default)
+header_color: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'
+```
+
+**Use Other Theme Variables:**
+```yaml
+# Use secondary color
+header_color: 'var(--secondary-color)'
+
+# Use accent color
+header_color: 'var(--accent-color)'
+
+# Dark background
+header_color: 'var(--card-background-color)'
+```
+
+**Restore Default:**
+```yaml
+# Explicitly set to match theme (this is already the default)
+header_color: 'var(--primary-color)'
 ```
 
 ### Concurrent Events
