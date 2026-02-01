@@ -22,6 +22,7 @@ class SkylightCalendarCard extends HTMLElement {
       showWeekNumbers: config.show_week_numbers !== false,
       firstDayOfWeek: config.first_day_of_week || 0, // 0 = Sunday
       colors: config.colors || {},
+      calendar_names: config.calendar_names || {}, // Map entity IDs to friendly names
       maxEvents: config.max_events || 100,
       view_mode: config.view_mode || 'month', // 'month', 'week-compact', 'week-standard'
       default_view: config.default_view || config.view_mode || 'month', // Default view on load
@@ -920,8 +921,7 @@ class SkylightCalendarCard extends HTMLElement {
     return `
       <div class="calendar-badges-inline">
         ${this._config.entities.map((entityId, index) => {
-          const entity = this._hass?.states[entityId];
-          const name = entity?.attributes?.friendly_name || entityId.split('.')[1];
+          const name = this.getCalendarName(entityId);
           const color = this._config.colors[entityId] || this.getDefaultColor(index);
           const initial = name.charAt(0).toUpperCase();
           const isHidden = this._hiddenCalendars.has(entityId);
@@ -1145,8 +1145,7 @@ class SkylightCalendarCard extends HTMLElement {
     return `
       <div class="calendar-badges">
         ${this._config.entities.map((entityId, index) => {
-          const entity = this._hass?.states[entityId];
-          const name = entity?.attributes?.friendly_name || entityId.split('.')[1];
+          const name = this.getCalendarName(entityId);
           const color = this._config.colors[entityId] || this.getDefaultColor(index);
           const initial = name.charAt(0).toUpperCase();
           const isHidden = this._hiddenCalendars.has(entityId);
@@ -1320,8 +1319,7 @@ class SkylightCalendarCard extends HTMLElement {
   renderEventIcon(event) {
     // Get the initials or icon based on calendar
     const entityId = event.entityId;
-    const entity = this._hass?.states[entityId];
-    const name = entity?.attributes?.friendly_name || '';
+    const name = this.getCalendarName(entityId);
     const initial = name.charAt(0).toUpperCase();
     
     return `<div class="week-standard-event-icon" style="background: ${event.color}; color: white;">${initial}</div>`;
@@ -1600,18 +1598,25 @@ class SkylightCalendarCard extends HTMLElement {
       endDate = new Date(event.end.dateTime);
       isAllDay = false;
     } else if (event.start.date) {
-      startDate = new Date(event.start.date);
-      endDate = new Date(event.end.date);
+      // For all-day events, add T00:00:00 to prevent timezone shifts
+      startDate = new Date(event.start.date + 'T00:00:00');
+      endDate = new Date(event.end.date + 'T00:00:00');
+      
+      // End date is exclusive for all-day events, so subtract 1 day for display
+      endDate.setDate(endDate.getDate() - 1);
       isAllDay = true;
     } else {
       startDate = new Date(event.start);
       endDate = new Date(event.end);
       isAllDay = !event.start.includes('T');
+      // If it's an all-day event in string format, adjust end date
+      if (isAllDay && event.end) {
+        endDate.setDate(endDate.getDate() - 1);
+      }
     }
     
     // Get calendar info
-    const entity = this._hass?.states[event.entityId];
-    const calendarName = entity?.attributes?.friendly_name || event.entityId.split('.')[1];
+    const calendarName = this.getCalendarName(event.entityId);
     
     content.innerHTML = `
       <div class="modal-header">
@@ -1735,6 +1740,17 @@ class SkylightCalendarCard extends HTMLElement {
     } else {
       return `${hours} hour${hours !== 1 ? 's' : ''} ${minutes} minute${minutes !== 1 ? 's' : ''}`;
     }
+  }
+
+  getCalendarName(entityId) {
+    // Check if there's a custom name mapping
+    if (this._config.calendar_names && this._config.calendar_names[entityId]) {
+      return this._config.calendar_names[entityId];
+    }
+    
+    // Otherwise use friendly_name from entity or entity ID
+    const entity = this._hass?.states[entityId];
+    return entity?.attributes?.friendly_name || entityId.split('.')[1];
   }
 
   escapeHtml(text) {
