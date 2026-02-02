@@ -902,7 +902,7 @@ class SkylightCalendarCard extends HTMLElement {
       <div class="header header-compact">
         <div class="compact-header-left">
           <h2 class="header-title">${this._config.title}</h2>
-          ${this._viewMode === 'week-standard' ? this.renderCalendarBadgesInline() : ''}
+          ${this.renderCalendarBadgesInline()}
         </div>
         <div class="header-controls">
           ${this.renderViewModeButtons()}
@@ -971,6 +971,7 @@ class SkylightCalendarCard extends HTMLElement {
   renderCalendarView() {
     if (this._viewMode === 'month') {
       return `
+        ${!this._config.compact_header ? this.renderCalendarBadges() : ''}
         <div class="calendar-grid">
           ${this.renderDayHeaders()}
           ${this.renderDays()}
@@ -999,6 +1000,7 @@ class SkylightCalendarCard extends HTMLElement {
     today.setHours(0, 0, 0, 0);
     
     return `
+      ${!this._config.compact_header ? this.renderCalendarBadges() : ''}
       <div class="week-compact-container">
         ${weekDays.map(date => {
           const isToday = date.toDateString() === today.toDateString();
