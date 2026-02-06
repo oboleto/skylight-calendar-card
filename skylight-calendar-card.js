@@ -1262,29 +1262,73 @@ class SkylightCalendarCard extends HTMLElement {
       return (b.endMinutes - b.startMinutes) - (a.endMinutes - a.startMinutes);
     });
     
-    // Detect overlapping events and assign columns
-    const columns = [];
-    eventBlocks.forEach(block => {
-      // Find a column where this event doesn't overlap
-      let placed = false;
-      for (let col of columns) {
-        const overlaps = col.some(other => 
-          block.startMinutes < other.endMinutes && block.endMinutes > other.startMinutes
-        );
-        if (!overlaps) {
-          col.push(block);
-          block.column = columns.indexOf(col);
-          placed = true;
-          break;
+       // Detect overlapping events and assign columns PER OVERLAP GROUP
+    const overlaps = (a, b) =>
+      a.startMinutes < b.endMinutes && a.endMinutes > b.startMinutes;
+    
+    // 1) Partition into overlap groups (connected components)
+    const remaining = new Set(eventBlocks);
+    const groups = [];
+    
+    while (remaining.size) {
+      const seed = remaining.values().next().value;
+      remaining.delete(seed);
+    
+      const stack = [seed];
+      const group = [seed];
+    
+      while (stack.length) {
+        const cur = stack.pop();
+    
+        // scan remaining events for overlaps with `cur`
+        for (const other of Array.from(remaining)) {
+          if (overlaps(cur, other)) {
+            remaining.delete(other);
+            stack.push(other);
+            group.push(other);
+          }
         }
       }
-      if (!placed) {
-        columns.push([block]);
-        block.column = columns.length - 1;
-      }
-    });
     
-    const totalColumns = columns.length;
+      groups.push(group);
+    }
+    
+    // 2) For each group, assign columns and store per-event totalColumns
+    for (const group of groups) {
+      // Sort by start time, then by duration (longer first)
+      group.sort((a, b) => {
+        if (a.startMinutes !== b.startMinutes) return a.startMinutes - b.startMinutes;
+        return (b.endMinutes - b.startMinutes) - (a.endMinutes - a.startMinutes);
+      });
+    
+      const cols = [];
+    
+      for (const block of group) {
+        let placed = false;
+    
+        for (let c = 0; c < cols.length; c++) {
+          const col = cols[c];
+          const hasOverlapInCol = col.some(other => overlaps(block, other));
+          if (!hasOverlapInCol) {
+            col.push(block);
+            block.column = c;
+            placed = true;
+            break;
+          }
+        }
+    
+        if (!placed) {
+          cols.push([block]);
+          block.column = cols.length - 1;
+        }
+      }
+    
+      const colCount = cols.length;
+      for (const block of group) {
+        block.totalColumns = colCount;
+      }
+    }
+
     
     // Render timed events
     return eventBlocks.map(block => {
